@@ -14,13 +14,15 @@ struct ContentView: View {
     @State private var unsavedPopup: Bool = false
     @State private var isLoggedIn: Bool = false
     @State private var authToken: String = ""
+    @State private var refreshToken: String = ""
     
     var body: some View {
         Group {
             if isLoggedIn == false {
                 LoginPage(
                     isLoggedIn: $isLoggedIn,
-                    authToken: $authToken
+                    authToken: $authToken,
+                    refreshToken: $refreshToken
                 )
             } else {
                 if let notebook = openNotebook {
@@ -31,7 +33,9 @@ struct ContentView: View {
                         openNotebook: $openNotebook,
                         unsavedPopup: $unsavedPopup,
                         authToken: $authToken,
-                        syncedNotebooks: $syncedNotebooks
+                        syncedNotebooks: $syncedNotebooks,
+                        refreshToken: $refreshToken,
+                        isLoggedIn: $isLoggedIn
                     )
                 } else {
                     NotebookListView(
@@ -44,13 +48,21 @@ struct ContentView: View {
                         selectedForDeletion: $selectedForDeletion,
                         noteText: $noteText,
                         lastSavedText: $lastSavedText,
-                        authToken: $authToken
+                        authToken: $authToken,
+                        refreshToken: $refreshToken,
+                        isLoggedIn: $isLoggedIn
                     )
                 }
             }
         }
         .onAppear {
             notebooks = NotesFileManager.listNotebooks()
+            
+            if let savedToken = KeychainManager.load(key: "authToken") {
+                authToken = savedToken
+                refreshToken = KeychainManager.load(key: "refreshToken") ?? ""
+                isLoggedIn = true
+            }
         }
     }
 }

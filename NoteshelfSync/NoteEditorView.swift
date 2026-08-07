@@ -8,6 +8,8 @@ struct NoteEditorView: View {
     @Binding var unsavedPopup: Bool
     @Binding var authToken: String
     @Binding var syncedNotebooks: Set<String>
+    @Binding var refreshToken: String
+    @Binding var isLoggedIn: Bool
 
     var body: some View {
         ZStack {
@@ -35,16 +37,33 @@ struct NoteEditorView: View {
                         lastSavedText = noteText
                         
                         Task {
-                            let success = await SyncManager.upload(
+                            let uploadResult = await SyncManager.upload(
                                 notebookId: notebook,
                                 fileContent: noteText,
                                 pageName: "\(notebook).txt",
                                 authToken: authToken
                             )
-                            if success {
+                            switch uploadResult {
+                            case .success:
                                 syncedNotebooks.insert(notebook)
+                            case .unauthorized:
+                                if let newToken = await AuthManager.refresh(refreshToken: refreshToken) {
+                                    authToken = newToken
+                                    KeychainManager.save(token: newToken, key: "authToken")
+                                    
+                                    let retryResult = await SyncManager.upload(notebookId: notebook, fileContent: noteText, pageName: "\(notebook).txt", authToken: newToken)
+                                    if retryResult == .success {
+                                        syncedNotebooks.insert(notebook)
+                                    }
+                                } else {
+                                    KeychainManager.delete(key: "authToken")
+                                    KeychainManager.delete(key: "refreshToken")
+                                    authToken = ""
+                                    isLoggedIn = false
+                                }
+                            case .failure:
+                                print("Upload failed")
                             }
-                            print("Upload Success: \(success)")
                         }
                     }) {
                         Text("Save")
@@ -109,6 +128,33 @@ struct NoteEditorView: View {
                     Button(action: {
                         NotesFileManager.saveNote(for: notebook, content: noteText)
                         lastSavedText = noteText
+                        
+                        Task {
+                            let uploadResult = await SyncManager.upload(notebookId: notebook, fileContent: noteText, pageName: "\(notebook).txt", authToken: authToken)
+                            
+                            switch uploadResult {
+                            case .success:
+                                syncedNotebooks.insert(notebook)
+                            case .unauthorized:
+                                if let newToken = await AuthManager.refresh(refreshToken: refreshToken) {
+                                    authToken = newToken
+                                    KeychainManager.save(token: newToken, key: "authToken")
+                                    
+                                    let retryResult = await SyncManager.upload(notebookId: notebook, fileContent: noteText, pageName: "\(notebook).txt", authToken: newToken)
+                                    if retryResult == .success {
+                                        syncedNotebooks.insert(notebook)
+                                    }
+                                } else {
+                                    KeychainManager.delete(key: "authToken")
+                                    KeychainManager.delete(key: "refreshToken")
+                                    authToken = ""
+                                    isLoggedIn = false
+                                }
+                            case .failure:
+                                print("Upload failed")
+                            }
+                        }
+                        
                         unsavedPopup = false
                         openNotebook = nil
                     }) {

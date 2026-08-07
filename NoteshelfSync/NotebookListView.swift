@@ -11,6 +11,8 @@ struct NotebookListView: View {
     @Binding var noteText: String
     @Binding var lastSavedText: String
     @Binding var authToken: String
+    @Binding var refreshToken: String
+    @Binding var isLoggedIn: Bool
 
     var body: some View {
         ZStack {
@@ -34,16 +36,44 @@ struct NotebookListView: View {
                     
                     Button(action: {
                         Task {
-                            let changes = await SyncManager.fetchChanges(since: "2026-07-01T00:00:00Z", authToken: authToken)
-                            for change in changes {
-                                if let notebookId = change["notebookId"] as? String,
-                                   let fileContent = change["fileContent"] as? String {
-                                    NotesFileManager.saveNote(for: notebookId, content: fileContent)
-                                    if !notebooks.contains(notebookId) {
-                                        notebooks.append(notebookId)
+                            let result = await SyncManager.fetchChanges(since: "2026-07-01T00:00:00Z", authToken: authToken)
+                            
+                            switch result.result {
+                            case .success:
+                                for change in result.changes {
+                                    if let notebookId = change["notebookId"] as? String,
+                                       let fileContent = change["fileContent"] as? String {
+                                        NotesFileManager.saveNote(for: notebookId, content: fileContent)
+                                        if !notebooks.contains(notebookId) {
+                                            notebooks.append(notebookId)
+                                        }
+                                        syncedNotebooks.insert(notebookId)
                                     }
-                                    syncedNotebooks.insert(notebookId)
                                 }
+                            case .unauthorized:
+                                if let newToken = await AuthManager.refresh(refreshToken: refreshToken) {
+                                    authToken = newToken
+                                    KeychainManager.save(token: newToken, key: "authToken")
+                                    
+                                    let retryResult = await SyncManager.fetchChanges(since: "2026-07-01T00:00:00Z", authToken: newToken)
+                                    for change in retryResult.changes {
+                                        if let notebookId = change["notebookId"] as? String,
+                                           let fileContent = change["fileContent"] as? String {
+                                            NotesFileManager.saveNote(for: notebookId, content: fileContent)
+                                            if !notebooks.contains(notebookId) {
+                                                notebooks.append(notebookId)
+                                            }
+                                            syncedNotebooks.insert(notebookId)
+                                        }
+                                    }
+                                } else {
+                                    KeychainManager.delete(key: "authToken")
+                                    KeychainManager.delete(key: "refreshToken")
+                                    authToken = ""
+                                    isLoggedIn = false
+                                }
+                            case .failure:
+                                print("Fetch changes failed")
                             }
                         }
                     }){

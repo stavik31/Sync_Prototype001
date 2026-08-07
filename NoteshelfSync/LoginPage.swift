@@ -3,6 +3,7 @@ import SwiftUI
 struct LoginPage: View {
     @Binding var isLoggedIn: Bool
     @Binding var authToken: String
+    @Binding var refreshToken: String
     @State private var username = "testuser@example.com"
     @State private var password = "RealPass456!"
 
@@ -19,9 +20,13 @@ struct LoginPage: View {
             
             Button(action: {
                 Task {
-                    if let token = await AuthManager.login(username: username, password: password){
-                        print("Got Token: \(token)")
-                        authToken = token
+                    let result = await AuthManager.login(username: username, password: password)
+                    if let idToken = result.idToken {
+                        print("Got Token: \(idToken)")
+                        authToken = idToken
+                        refreshToken = result.refreshToken ?? ""
+                        KeychainManager.save(token: idToken, key: "authToken")
+                        KeychainManager.save(token: result.refreshToken ?? "", key: "refreshToken")
                         isLoggedIn = true
                     } else {
                         print("Login failed")
