@@ -1,2 +1,1 @@
-# notebook-ios
-IOS version of notebook app
+# Sync Prototype
