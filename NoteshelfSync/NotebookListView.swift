@@ -35,47 +35,7 @@ struct NotebookListView: View {
                     Spacer()
                     
                     Button(action: {
-                        Task {
-                            let result = await SyncManager.fetchChanges(since: "2026-07-01T00:00:00Z", authToken: authToken)
-                            
-                            switch result.result {
-                            case .success:
-                                for change in result.changes {
-                                    if let notebookId = change["notebookId"] as? String,
-                                       let fileContent = change["fileContent"] as? String {
-                                        NotesFileManager.saveNote(for: notebookId, content: fileContent)
-                                        if !notebooks.contains(notebookId) {
-                                            notebooks.append(notebookId)
-                                        }
-                                        syncedNotebooks.insert(notebookId)
-                                    }
-                                }
-                            case .unauthorized:
-                                if let newToken = await AuthManager.refresh(refreshToken: refreshToken) {
-                                    authToken = newToken
-                                    KeychainManager.save(token: newToken, key: "authToken")
-                                    
-                                    let retryResult = await SyncManager.fetchChanges(since: "2026-07-01T00:00:00Z", authToken: newToken)
-                                    for change in retryResult.changes {
-                                        if let notebookId = change["notebookId"] as? String,
-                                           let fileContent = change["fileContent"] as? String {
-                                            NotesFileManager.saveNote(for: notebookId, content: fileContent)
-                                            if !notebooks.contains(notebookId) {
-                                                notebooks.append(notebookId)
-                                            }
-                                            syncedNotebooks.insert(notebookId)
-                                        }
-                                    }
-                                } else {
-                                    KeychainManager.delete(key: "authToken")
-                                    KeychainManager.delete(key: "refreshToken")
-                                    authToken = ""
-                                    isLoggedIn = false
-                                }
-                            case .failure:
-                                print("Fetch changes failed")
-                            }
-                        }
+// used to call fetchChanges, handle 401 refresh/retry, and write incoming notes — see SyncManager.swift history / P4
                     }){
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 25))

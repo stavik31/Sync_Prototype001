@@ -36,35 +36,7 @@ struct NoteEditorView: View {
                         NotesFileManager.saveNote(for: notebook, content: noteText)
                         lastSavedText = noteText
                         
-                        Task {
-                            let uploadResult = await SyncManager.upload(
-                                notebookId: notebook,
-                                fileContent: noteText,
-                                pageName: "\(notebook).txt",
-                                authToken: authToken
-                            )
-                            switch uploadResult {
-                            case .success:
-                                syncedNotebooks.insert(notebook)
-                            case .unauthorized:
-                                if let newToken = await AuthManager.refresh(refreshToken: refreshToken) {
-                                    authToken = newToken
-                                    KeychainManager.save(token: newToken, key: "authToken")
-                                    
-                                    let retryResult = await SyncManager.upload(notebookId: notebook, fileContent: noteText, pageName: "\(notebook).txt", authToken: newToken)
-                                    if retryResult == .success {
-                                        syncedNotebooks.insert(notebook)
-                                    }
-                                } else {
-                                    KeychainManager.delete(key: "authToken")
-                                    KeychainManager.delete(key: "refreshToken")
-                                    authToken = ""
-                                    isLoggedIn = false
-                                }
-                            case .failure:
-                                print("Upload failed")
-                            }
-                        }
+// used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4
                     }) {
                         Text("Save")
                             .foregroundColor(.black)
@@ -129,31 +101,7 @@ struct NoteEditorView: View {
                         NotesFileManager.saveNote(for: notebook, content: noteText)
                         lastSavedText = noteText
                         
-                        Task {
-                            let uploadResult = await SyncManager.upload(notebookId: notebook, fileContent: noteText, pageName: "\(notebook).txt", authToken: authToken)
-                            
-                            switch uploadResult {
-                            case .success:
-                                syncedNotebooks.insert(notebook)
-                            case .unauthorized:
-                                if let newToken = await AuthManager.refresh(refreshToken: refreshToken) {
-                                    authToken = newToken
-                                    KeychainManager.save(token: newToken, key: "authToken")
-                                    
-                                    let retryResult = await SyncManager.upload(notebookId: notebook, fileContent: noteText, pageName: "\(notebook).txt", authToken: newToken)
-                                    if retryResult == .success {
-                                        syncedNotebooks.insert(notebook)
-                                    }
-                                } else {
-                                    KeychainManager.delete(key: "authToken")
-                                    KeychainManager.delete(key: "refreshToken")
-                                    authToken = ""
-                                    isLoggedIn = false
-                                }
-                            case .failure:
-                                print("Upload failed")
-                            }
-                        }
+// used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4
                         
                         unsavedPopup = false
                         openNotebook = nil

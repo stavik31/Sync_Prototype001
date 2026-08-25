@@ -4,8 +4,8 @@ struct LoginPage: View {
     @Binding var isLoggedIn: Bool
     @Binding var authToken: String
     @Binding var refreshToken: String
-    @State private var username = "testuser@example.com"
-    @State private var password = "RealPass456!"
+    @State private var username = "madhavchoudhary296@gmail.com"
+    @State private var password = "Syncprototype@001"
 
     var body: some View {
         VStack(spacing: 16) {

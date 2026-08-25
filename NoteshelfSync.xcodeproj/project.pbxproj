@@ -6,11 +6,31 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		DF99A5F6303C596C0065E380 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = DF99A5F5303C596C0065E380 /* SQLite */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		DF99A601303C5E350065E380 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DFD7E0B9301A0447005AAF45 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DFD7E0C0301A0447005AAF45;
+			remoteInfo = NoteshelfSync;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		DF99A5FD303C5E350065E380 /* NoteshelfSyncTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NoteshelfSyncTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DFD7E0C1301A0447005AAF45 /* NoteshelfSync.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NoteshelfSync.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		DF99A5FE303C5E350065E380 /* NoteshelfSyncTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NoteshelfSyncTests;
+			sourceTree = "<group>";
+		};
 		DFD7E0C3301A0447005AAF45 /* NoteshelfSync */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = NoteshelfSync;
@@ -19,10 +39,18 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		DF99A5FA303C5E350065E380 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DFD7E0BE301A0447005AAF45 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF99A5F6303C596C0065E380 /* SQLite in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +61,7 @@
 			isa = PBXGroup;
 			children = (
 				DFD7E0C3301A0447005AAF45 /* NoteshelfSync */,
+				DF99A5FE303C5E350065E380 /* NoteshelfSyncTests */,
 				DFD7E0C2301A0447005AAF45 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				DFD7E0C1301A0447005AAF45 /* NoteshelfSync.app */,
+				DF99A5FD303C5E350065E380 /* NoteshelfSyncTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +78,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		DF99A5FC303C5E350065E380 /* NoteshelfSyncTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DF99A603303C5E350065E380 /* Build configuration list for PBXNativeTarget "NoteshelfSyncTests" */;
+			buildPhases = (
+				DF99A5F9303C5E350065E380 /* Sources */,
+				DF99A5FA303C5E350065E380 /* Frameworks */,
+				DF99A5FB303C5E350065E380 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DF99A602303C5E350065E380 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DF99A5FE303C5E350065E380 /* NoteshelfSyncTests */,
+			);
+			name = NoteshelfSyncTests;
+			packageProductDependencies = (
+			);
+			productName = NoteshelfSyncTests;
+			productReference = DF99A5FD303C5E350065E380 /* NoteshelfSyncTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		DFD7E0C0301A0447005AAF45 /* NoteshelfSync */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DFD7E0CC301A044A005AAF45 /* Build configuration list for PBXNativeTarget "NoteshelfSync" */;
@@ -65,6 +118,7 @@
 			);
 			name = NoteshelfSync;
 			packageProductDependencies = (
+				DF99A5F5303C596C0065E380 /* SQLite */,
 			);
 			productName = NoteshelfSync;
 			productReference = DFD7E0C1301A0447005AAF45 /* NoteshelfSync.app */;
@@ -80,6 +134,10 @@
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					DF99A5FC303C5E350065E380 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = DFD7E0C0301A0447005AAF45;
+					};
 					DFD7E0C0301A0447005AAF45 = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -94,17 +152,28 @@
 			);
 			mainGroup = DFD7E0B8301A0447005AAF45;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				DF99A5F4303C596C0065E380 /* XCRemoteSwiftPackageReference "SQLite" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DFD7E0C2301A0447005AAF45 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				DFD7E0C0301A0447005AAF45 /* NoteshelfSync */,
+				DF99A5FC303C5E350065E380 /* NoteshelfSyncTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		DF99A5FB303C5E350065E380 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DFD7E0BF301A0447005AAF45 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +184,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		DF99A5F9303C5E350065E380 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DFD7E0BD301A0447005AAF45 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +200,55 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		DF99A602303C5E350065E380 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DFD7E0C0301A0447005AAF45 /* NoteshelfSync */;
+			targetProxy = DF99A601303C5E350065E380 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		DF99A604303C5E350065E380 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.satvik.NoteshelfSyncTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NoteshelfSync.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NoteshelfSync";
+			};
+			name = Debug;
+		};
+		DF99A605303C5E350065E380 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.satvik.NoteshelfSyncTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NoteshelfSync.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NoteshelfSync";
+			};
+			name = Release;
+		};
 		DFD7E0CA301A044A005AAF45 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -309,6 +433,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		DF99A603303C5E350065E380 /* Build configuration list for PBXNativeTarget "NoteshelfSyncTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DF99A604303C5E350065E380 /* Debug */,
+				DF99A605303C5E350065E380 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		DFD7E0BC301A0447005AAF45 /* Build configuration list for PBXProject "NoteshelfSync" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -328,6 +461,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		DF99A5F4303C596C0065E380 /* XCRemoteSwiftPackageReference "SQLite" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stephencelis/SQLite.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.16.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		DF99A5F5303C596C0065E380 /* SQLite */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DF99A5F4303C596C0065E380 /* XCRemoteSwiftPackageReference "SQLite" */;
+			productName = SQLite;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DFD7E0B9301A0447005AAF45 /* Project object */;
 }

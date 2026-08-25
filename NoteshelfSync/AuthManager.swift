@@ -2,8 +2,8 @@ import Foundation
 
 struct AuthManager {
     
-    static let clientId = "559l79m5jdakfj5d7okp40940p"
-    static let region = "ap-southeast-2"
+    static let clientId = "388s6r4q4n7e40gv66m0qea6v8"
+    static let region = "eu-north-1"
     
     static func login(username: String, password: String) async -> (idToken: String?, refreshToken: String?) {
         let url = URL(string: "https://cognito-idp.\(region).amazonaws.com/")!
@@ -79,5 +79,24 @@ struct AuthManager {
         }
         
         return nil
+    }
+    
+    static func userId(from idToken: String) -> String? {
+        let parts = idToken.split(separator: ".")
+        guard parts.count == 3 else {return nil}
+        
+        var payload = String(parts[1])
+        payload = payload.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        
+        while payload.count % 4 != 0 {
+            payload += "="
+        }
+        
+        guard let data = Data(base64Encoded: payload) else {return nil}
+        
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let sub = json["sub"] as? String else {return nil}
+        
+        return sub
     }
 }

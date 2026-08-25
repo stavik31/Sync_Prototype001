@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Working agreement
 
-**Do not write, edit, or apply code in this repository. Ever.** Satvik writes every line personally. Claude's role is to read, investigate, explain, and suggest — findings go in the reply as prose with snippets inline for him to type himself.
+**Do not write or apply new logic in this repository. Ever.** Satvik writes every line of actual functionality personally. Claude's role there is to read, investigate, explain, and suggest — findings go in the reply as prose with snippets inline for him to type himself.
 
 This holds even when a message sounds like a direct instruction to fix something ("fix the typo", "make it handle X"). That is a request for a recommendation, not for an edit. It has already been misread once. If a change seems obviously correct, describe it and stop.
 
-Also off-limits: any command that mutates the sources — `sed -i`, `git checkout`, `git stash`, formatters. Reading (`Read`, `Grep`, `git diff`) and read-only `xcodebuild` builds are fine.
+**Exception, added 2026-08-24:** Claude may make mechanical edits that touch no logic — deleting code (including a whole file), commenting code out, and replacing already-commented-out code with a short marker comment. These are reversible via git and carry none of the risk the rule above exists to avoid. If there's any judgment call about *what* the replacement comment should say or *which* lines constitute the logical unit to remove, ask or describe it first rather than guessing.
+
+Still off-limits regardless: writing any new logic, and any command that mutates history or discards work — `git checkout`, `git stash`, `git reset`, formatters that reformat logic. Reading (`Read`, `Grep`, `git diff`) and read-only `xcodebuild` builds are fine, as is `sed`/`Edit` for the mechanical edits above.
 
 The one exception is this file. Satvik will say "update CLAUDE.md" at the end of a session; that is the cue to fold in what was learned. Nothing else in the repo gets written.
 

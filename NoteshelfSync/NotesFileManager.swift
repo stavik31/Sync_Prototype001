@@ -29,4 +29,24 @@ struct NotesFileManager {
             .filter { $0.hasSuffix(".txt") }
             .map { $0.replacingOccurrences(of: ".txt", with: "") }
     }
+    
+    static func documentsURL() -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+    
+    static func notebookURL(userId: String, notebook: String) -> URL {
+        documentsURL()
+            .appendingPathComponent(userId)
+            .appendingPathComponent(notebook)
+    }
+    
+    static func pageURL(userId: String, notebook: String, page: String) -> URL {
+        notebookURL(userId: userId, notebook: notebook)
+            .appendingPathComponent("\(page).rtf")
+    }
+    
+    static func ensureNotebookFolder(userId: String, notebook: String) {
+        let url = notebookURL(userId: userId, notebook: notebook)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
 }
