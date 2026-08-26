@@ -13,6 +13,7 @@ struct NotebookListView: View {
     @Binding var authToken: String
     @Binding var refreshToken: String
     @Binding var isLoggedIn: Bool
+    @Binding var pageIndex: Int
 
     var body: some View {
         ZStack {
@@ -55,7 +56,7 @@ struct NotebookListView: View {
                 
                 ForEach(notebooks, id: \.self) { notebook in
                     NotebookCard(notebook: notebook, isSynced: syncedNotebooks.contains(notebook), onTap: {
-                        noteText = NotebookStore.loadPage(notebook, page: NotebookStore.firstPageName(in: notebook))
+                        noteText = NotebookStore.loadPage(notebook, page: "\(NotebookStore.loadInfo(for: notebook)?.order.first ?? "").rtf")
                         lastSavedText = noteText
                         openNotebook = notebook
                     })

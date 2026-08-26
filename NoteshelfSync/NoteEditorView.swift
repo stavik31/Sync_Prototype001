@@ -10,6 +10,16 @@ struct NoteEditorView: View {
     @Binding var syncedNotebooks: Set<String>
     @Binding var refreshToken: String
     @Binding var isLoggedIn: Bool
+    @Binding var pageIndex: Int
+    
+    private var pages: [String] {
+        NotebookStore.loadInfo(for: notebook)?.order ?? []
+    }
+    
+    private var currentPageFile: String {
+        guard pageIndex >= 0 && pageIndex < pages.count else { return "" }
+        return "\(pages[pageIndex]).rtf"
+    }
 
     var body: some View {
         ZStack {
@@ -33,7 +43,7 @@ struct NoteEditorView: View {
                     Spacer()
                     
                     Button(action: {
-                        NotebookStore.savePage(notebook, page: NotebookStore.firstPageName(in: notebook), content: noteText)
+                        NotebookStore.savePage(notebook, page: currentPageFile, content: noteText)
                         lastSavedText = noteText
                         
 // used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4
@@ -86,7 +96,7 @@ struct NoteEditorView: View {
                 
                 VStack(spacing: 16) {
                     Button(action:  {
-                        noteText = NotebookStore.loadPage(notebook, page: NotebookStore.firstPageName(in: notebook))
+                        noteText = NotebookStore.loadPage(notebook, page: currentPageFile)
                         unsavedPopup = false
                         openNotebook = nil
                     }) {
@@ -98,7 +108,7 @@ struct NoteEditorView: View {
                     }
                     
                     Button(action: {
-                        NotebookStore.savePage(notebook, page: NotebookStore.firstPageName(in: notebook), content: noteText)
+                        NotebookStore.savePage(notebook, page: currentPageFile, content: noteText)
                         lastSavedText = noteText
                         
 // used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4

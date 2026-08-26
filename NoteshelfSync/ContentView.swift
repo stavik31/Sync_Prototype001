@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var isLoggedIn: Bool = false
     @State private var authToken: String = ""
     @State private var refreshToken: String = ""
+    @State private var pageIndex: Int = 0
     
     var body: some View {
         Group {
@@ -35,7 +36,8 @@ struct ContentView: View {
                         authToken: $authToken,
                         syncedNotebooks: $syncedNotebooks,
                         refreshToken: $refreshToken,
-                        isLoggedIn: $isLoggedIn
+                        isLoggedIn: $isLoggedIn,
+                        pageIndex: $pageIndex
                     )
                 } else {
                     NotebookListView(
@@ -50,7 +52,8 @@ struct ContentView: View {
                         lastSavedText: $lastSavedText,
                         authToken: $authToken,
                         refreshToken: $refreshToken,
-                        isLoggedIn: $isLoggedIn
+                        isLoggedIn: $isLoggedIn,
+                        pageIndex: $pageIndex
                     )
                 }
             }

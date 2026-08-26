@@ -1,8 +1,8 @@
 import Foundation
 
-struct LocalManifest: Codable {
+struct NotebookInfo: Codable {
     var id: String
-    var files: [FileEntry]
+    var order: [String]
 }
 
 struct NotebookStore {
@@ -16,6 +16,26 @@ struct NotebookStore {
         rootURL().appendingPathComponent(name)
     }
     
+    static func notebookJSONURL(_ name: String) -> URL {
+        notebookURL(name).appendingPathComponent("notebook.json")
+    }
+    
+    static func saveInfo(_ info: NotebookInfo, for name: String) {
+        guard let data = try? JSONEncoder().encode(info) else { return }
+        try? data.write(to: notebookJSONURL(name), options: .atomic)
+    }
+    
+    static func loadInfo(for name: String) -> NotebookInfo? {
+        guard let data = try? Data(contentsOf: notebookJSONURL(name)) else { return nil}
+        return try? JSONDecoder().decode(NotebookInfo.self, from: data)
+    }
+    
+    static func lastMod(_ notebook: String, page: String) -> Int64 {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: pageURL(notebook, page: page).path)
+        guard let date = attrs?[.modificationDate] as? Date else { return 0}
+        return Int64(date.timeIntervalSince1970 * 1000)
+    }
+    
     static func pagesURL(_ name: String) -> URL {
         notebookURL(name).appendingPathComponent("Pages")
     }
@@ -24,67 +44,64 @@ struct NotebookStore {
         pagesURL(notebook).appendingPathComponent(page)
     }
     
-    static func firstPageName(in notebook: String) -> String {
-        guard let manifest = loadManifest(for: notebook),
-                let first = manifest.files.first else { return "Page1.rtf" }
-        return (first.path as NSString).lastPathComponent
-    }
-    
     static func loadPage(_ notebook: String, page: String) -> String {
         (try? String(contentsOf: pageURL(notebook, page: page), encoding: .utf8)) ?? ""
     }
     
     static func savePage(_ notebook: String, page: String, content: String) {
         try? content.write(to: pageURL(notebook, page: page), atomically: true, encoding: .utf8)
-        touch(notebook: notebook, page: page)
     }
     
-    static func touch(notebook: String, page: String) {
-        guard var manifest = loadManifest(for: notebook) else {return}
-        guard let i = manifest.files.firstIndex(where: {
-            ($0.path as NSString).lastPathComponent == page
-        }) else {return}
-        manifest.files[i].last_mod = now()
-        saveManifest(manifest, for: notebook)
+    static func addPage(to notebook: String, after index: Int) -> Int {
+        guard var info = loadInfo(for: notebook) else { return index }
+        
+        let pageId = UUID().uuidString
+        let newPage = pagesURL(notebook).appendingPathComponent("\(pageId).rtf")
+        try? "".write(to: newPage, atomically: true, encoding: .utf8)
+        
+        let newIndex = min(index + 1, info.order.count)
+        info.order.insert(pageId, at: newIndex)
+        saveInfo(info, for: notebook)
+        
+        return newIndex
     }
     
-    static func manifestURL(_ name: String) -> URL {
-        notebookURL(name).appendingPathComponent("Manifest.json")
-    }
-    
-    static func now() -> Int64 {
-        Int64(Date().timeIntervalSince1970 * 1000)
+    static func deletePage(from notebook: String, at index: Int) -> Int {
+        guard var info = loadInfo(for: notebook) else { return 0}
+        guard index >= 0 && index < info.order.count else { return index }
+        
+        let pageId = info.order[index]
+        try? FileManager.default.removeItem(at: pageURL(notebook, page: "\(pageId).rtf"))
+        info.order.remove(at: index)
+        
+        if info.order.isEmpty {
+            let newId = UUID().uuidString
+            let newPage = pagesURL(notebook).appendingPathComponent("\(newId).rtf")
+            try? "".write(to: newPage, atomically: true, encoding: .utf8)
+            info.order = [newId]
+            saveInfo(info, for: notebook)
+            return 0
+        }
+        
+        saveInfo(info, for: notebook)
+        return min(index, info.order.count - 1)
     }
     
     static func createNotebook(named name: String) {
         try? FileManager.default.createDirectory(at: pagesURL(name), withIntermediateDirectories: true)
         
-        let firstPage = pagesURL(name).appendingPathComponent("Page1.rtf")
+        let pageId = UUID().uuidString
+        let firstPage = pagesURL(name).appendingPathComponent("\(pageId).rtf")
         try? "".write(to: firstPage, atomically: true, encoding: .utf8)
         
-        let manifest = LocalManifest(
-            id: UUID().uuidString,
-            files: [
-                FileEntry(id: UUID().uuidString, path: "/Pages/Page1.rtf", last_mod: now())
-            ]
-        )
-        saveManifest(manifest, for: name)
-    }
-    
-    static func saveManifest(_ manifest: LocalManifest, for name: String) {
-        guard let data = try? JSONEncoder().encode(manifest) else { return }
-        try? data.write(to: manifestURL(name), options: .atomic)
-    }
-    
-    static func loadManifest(for name: String) -> LocalManifest? {
-        guard let data = try? Data(contentsOf:manifestURL(name)) else { return nil }
-        return try? JSONDecoder().decode(LocalManifest.self, from: data)
+        let info = NotebookInfo(id: UUID().uuidString, order: [pageId])
+        saveInfo(info, for: name)
     }
     
     static func listNotebooks() -> [String] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: rootURL().path) else {
             return []
         }
-        return names.filter {FileManager.default.fileExists(atPath: manifestURL($0).path)}
+        return names.filter {FileManager.default.fileExists(atPath: notebookJSONURL($0).path)}
     }
 }
