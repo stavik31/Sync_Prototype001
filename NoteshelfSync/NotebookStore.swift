@@ -20,6 +20,34 @@ struct NotebookStore {
         notebookURL(name).appendingPathComponent("Pages")
     }
     
+    static func pageURL(_ notebook: String, page: String) -> URL {
+        pagesURL(notebook).appendingPathComponent(page)
+    }
+    
+    static func firstPageName(in notebook: String) -> String {
+        guard let manifest = loadManifest(for: notebook),
+                let first = manifest.files.first else { return "Page1.rtf" }
+        return (first.path as NSString).lastPathComponent
+    }
+    
+    static func loadPage(_ notebook: String, page: String) -> String {
+        (try? String(contentsOf: pageURL(notebook, page: page), encoding: .utf8)) ?? ""
+    }
+    
+    static func savePage(_ notebook: String, page: String, content: String) {
+        try? content.write(to: pageURL(notebook, page: page), atomically: true, encoding: .utf8)
+        touch(notebook: notebook, page: page)
+    }
+    
+    static func touch(notebook: String, page: String) {
+        guard var manifest = loadManifest(for: notebook) else {return}
+        guard let i = manifest.files.firstIndex(where: {
+            ($0.path as NSString).lastPathComponent == page
+        }) else {return}
+        manifest.files[i].last_mod = now()
+        saveManifest(manifest, for: notebook)
+    }
+    
     static func manifestURL(_ name: String) -> URL {
         notebookURL(name).appendingPathComponent("Manifest.json")
     }

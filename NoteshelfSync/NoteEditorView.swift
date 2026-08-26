@@ -33,7 +33,7 @@ struct NoteEditorView: View {
                     Spacer()
                     
                     Button(action: {
-                        NotesFileManager.saveNote(for: notebook, content: noteText)
+                        NotebookStore.savePage(notebook, page: NotebookStore.firstPageName(in: notebook), content: noteText)
                         lastSavedText = noteText
                         
 // used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4
@@ -86,7 +86,7 @@ struct NoteEditorView: View {
                 
                 VStack(spacing: 16) {
                     Button(action:  {
-                        noteText = NotesFileManager.loadNote(for: notebook)
+                        noteText = NotebookStore.loadPage(notebook, page: NotebookStore.firstPageName(in: notebook))
                         unsavedPopup = false
                         openNotebook = nil
                     }) {
@@ -98,7 +98,7 @@ struct NoteEditorView: View {
                     }
                     
                     Button(action: {
-                        NotesFileManager.saveNote(for: notebook, content: noteText)
+                        NotebookStore.savePage(notebook, page: NotebookStore.firstPageName(in: notebook), content: noteText)
                         lastSavedText = noteText
                         
 // used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4

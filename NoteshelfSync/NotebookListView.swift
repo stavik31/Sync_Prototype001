@@ -55,7 +55,7 @@ struct NotebookListView: View {
                 
                 ForEach(notebooks, id: \.self) { notebook in
                     NotebookCard(notebook: notebook, isSynced: syncedNotebooks.contains(notebook), onTap: {
-                        noteText = NotesFileManager.loadNote(for: notebook)
+                        noteText = NotebookStore.loadPage(notebook, page: NotebookStore.firstPageName(in: notebook))
                         lastSavedText = noteText
                         openNotebook = notebook
                     })

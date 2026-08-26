@@ -56,7 +56,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            notebooks = NotesFileManager.listNotebooks()
+            notebooks = NotebookStore.listNotebooks()
             
             if let savedToken = KeychainManager.load(key: "authToken") {
                 authToken = savedToken
