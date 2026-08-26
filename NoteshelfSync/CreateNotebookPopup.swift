@@ -25,6 +25,7 @@ struct CreateNotebookPopup: View {
                 }
                 
                 Button(action: {
+                    NotebookStore.createNotebook(named: name)
                     notebooks.append(name)
                     isPresented = false
                     name = ""
