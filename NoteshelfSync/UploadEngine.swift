@@ -38,39 +38,92 @@ struct UploadEngine {
     // Returns 0 if the notebook has no pages.
     static func notebookLastMod(_ notebook: String) -> Int64 {
 
-        // read the page order         -> NotebookStore.loadInfo(for:)
-        // for each page uuid, get its file date  -> NotebookStore.lastMod(_:page:)
-        // return the largest
-
-        return 0
+        guard let info = NotebookStore.loadInfo(for: notebook) else { return 0 }
+        
+        var newest: Int64 = 0
+        
+        for pageId in info.order {
+            let mod = NotebookStore.lastMod(notebook, page: "\(pageId).rtf")
+            if mod > newest {
+                newest = mod
+            }
+        }
+        return newest
     }
 
     // Uploads one notebook end to end. Returns true only if commit succeeded.
     static func upload(notebook: String, packageId: String, authToken: String) async -> Bool {
 
-        // 1. build [PrepareFile] — one per page, id + last_mod
-
-        // 2. SyncAPI.prepare(...)  -> gives back an upload url per page
-
-        // 3. for each returned UploadTarget:
-        //      read that page's content  -> NotebookStore.loadPage(_:page:)
-        //      send it                   -> put(content:to:)
-        //      stop if any PUT fails
-
-        // 4. build Manifest — one FileEntry per page, with id + path + last_mod
-        //    (path is the notebook-relative one, e.g. "/Pages/Page1.rtf")
-
-        // 5. SyncAPI.commit(...)  — path is the notebook's display path
-
-        // 6. only if commit succeeded, SyncTable.save(...)
-
-        return false
+        guard let info = NotebookStore.loadInfo(for: notebook) else { return false }
+        
+        let serverManifest = await SyncAPI.getManifest(packageId: packageId, authToken: authToken)
+        let serverPages = serverManifest?.files ?? []
+        
+        var changed: [PrepareFile] = []
+        for pageId in info.order {
+            let localMod = NotebookStore.lastMod(notebook, page: "\(pageId).rtf")
+            let serverMod = serverPages.first(where: { $0.id == pageId})?.last_mod
+            if serverMod != localMod {
+                changed.append(PrepareFile(id: pageId, last_mod: localMod))
+            }
+        }
+        
+        if !changed.isEmpty {
+            guard let prep = await SyncAPI.prepare(packageId: packageId, files: changed, authToken: authToken) else {
+                return false
+            }
+            
+            for target in prep.uploads {
+                let content = NotebookStore.loadPage(notebook, page: "\(target.id).rtf")
+                if await put(content: content, to: target.url) == false {
+                    return false
+                }
+            }
+        }
+        
+        var files: [FileEntry] = []
+        for pageId in info.order {
+            files.append(FileEntry(id: pageId, path: "/Pages/\(pageId).rtf", last_mod: NotebookStore.lastMod(notebook, page: "\(pageId).rtf")))
+        }
+        
+        let notebookMod = notebookLastMod(notebook)
+        
+        guard await SyncAPI.commit(
+            packageId: packageId,
+            path: "MyNotes/\(notebook)",
+            lastMod: notebookMod,
+            manifest: Manifest(files: files),
+            authToken: authToken
+        ) != nil else { return false }
+        
+        SyncTable.save(notebook: notebook, packageId: packageId, lastMod: notebookMod)
+        return true
     }
 
     // Sends one page's content to a presigned url.
     // No Authorization header — permission is already inside the url.
     static func put(content: String, to urlString: String) async -> Bool {
 
-        return false
+        guard let url = URL(string: urlString) else { return false }
+
+                var request = URLRequest(url: url)
+                request.httpMethod = "PUT"
+                request.httpBody = content.data(using: .utf8)
+
+                do {
+                    let (_, response) = try await URLSession.shared.data(for: request)
+                    guard let http = response as? HTTPURLResponse else { return false }
+
+                    if http.statusCode != 200 {
+                        print("put failed: \(http.statusCode)")
+                        return false
+                    }
+
+                    return true
+
+                } catch {
+                    print("put error: \(error)")
+                    return false
+                }
     }
 }
