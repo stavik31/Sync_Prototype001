@@ -66,7 +66,8 @@ struct ContentView: View {
                         authToken: $authToken,
                         refreshToken: $refreshToken,
                         isLoggedIn: $isLoggedIn,
-                        pageIndex: $pageIndex
+                        pageIndex: $pageIndex,
+                        userId: $userId
                     )
                 }
             }

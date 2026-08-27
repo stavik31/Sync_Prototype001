@@ -22,6 +22,8 @@ struct NotebookListView: View {
     @Binding var refreshToken: String
     @Binding var isLoggedIn: Bool
     @Binding var pageIndex: Int
+    @Binding var userId: String
+    @State private var uploading = false
 
     var body: some View {
         ZStack {
@@ -42,6 +44,26 @@ struct NotebookListView: View {
                         .font(.title)
                         .bold()
                     Spacer()
+                    
+                    Button(action: {
+                        Task {
+                            uploading = true
+                            await UploadEngine.uploadAll(userId: userId, authToken: authToken)
+                            syncedNotebooks = Set(notebooks.filter { SyncTable.record(for: $0) != nil })
+                            uploading = false
+                        }
+                    }) {
+                        if uploading {
+                            ProgressView()
+                                .frame(width: 45, height: 45)
+                        } else {
+                            Image(systemName: "icloud.and.arrow.up")
+                                .font(.system(size: 25))
+                                .foregroundColor(.black)
+                                .padding(10)
+                        }
+                    }
+                    .disabled(uploading)
                     
                     Button(action: {
 // used to call fetchChanges, handle 401 refresh/retry, and write incoming notes — see SyncManager.swift history / P4
