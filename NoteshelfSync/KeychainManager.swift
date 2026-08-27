@@ -1,6 +1,16 @@
 import Foundation
 import Security
 
+// Stores the Cognito tokens in the iOS Keychain.
+//
+// Tokens go here rather than in a plain file because they're credentials —
+// anyone holding one can act as this user until it expires. Notebook content
+// isn't sensitive in the same way, so it lives as ordinary files.
+//
+// Two entries, keyed by name: "authToken" (the ID token) and "refreshToken".
+//
+// Worth knowing: every OSStatus is ignored, so a failed write is silent — you
+// get nothing back on the next read and no indication why.
 struct KeychainManager {
 
     static func save(token: String, key: String) {

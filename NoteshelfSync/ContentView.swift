@@ -1,5 +1,16 @@
 import SwiftUI
 
+// The root view, and the single place all app state lives.
+//
+// Every @State in the app is declared here; other views receive @Bindings and
+// never keep their own copies. There are no view models or ObservableObjects —
+// this is deliberate, and new state should follow the same pattern: add the
+// @State here, thread a binding down.
+//
+// The body picks one of three screens based on two values:
+//   not logged in        -> LoginPage
+//   logged in, no open   -> NotebookListView
+//   logged in, notebook  -> NoteEditorView
 struct ContentView: View {
     
     @State private var syncedNotebooks: Set<String> = []
@@ -60,6 +71,12 @@ struct ContentView: View {
                 }
             }
         }
+        // Runs once when the app opens: load the notebook list from disk, and
+        // log the user straight back in if a token was saved last time.
+        //
+        // Note this only checks that a token EXISTS — it never asks whether
+        // it's still valid. A stale token gets you past the login screen and
+        // only fails later, when something actually calls the server.
         .onAppear {
             notebooks = NotebookStore.listNotebooks()
             

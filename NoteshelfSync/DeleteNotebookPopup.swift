@@ -1,5 +1,11 @@
 import SwiftUI
 
+// Popup for selecting notebooks and deleting them.
+//
+// KNOWN BUG: this only removes names from the in-memory list. The folders stay
+// on disk, so every "deleted" notebook comes back on the next launch, when the
+// list is rebuilt by scanning the filesystem. Needs a NotebookStore function
+// that actually removes the folder.
 struct DeleteNotebooksPopup: View {
     @Binding var isPresented: Bool
     @Binding var notebooks: [String]

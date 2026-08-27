@@ -1,5 +1,13 @@
 import SwiftUI
 
+// Popup for naming and creating a notebook.
+//
+// Create does two things: NotebookStore builds the real folder, notebook.json
+// and first page on disk, then the name is appended to the in-memory list so
+// it shows up immediately.
+//
+// No validation — empty names and duplicates are both accepted, and a duplicate
+// name would collide with the existing folder.
 struct CreateNotebookPopup: View {
     @Binding var isPresented: Bool
     @Binding var notebooks: [String]

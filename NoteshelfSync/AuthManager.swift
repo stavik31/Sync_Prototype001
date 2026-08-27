@@ -1,5 +1,17 @@
 import Foundation
 
+// Talks to AWS Cognito directly — no AWS SDK, just hand-built requests.
+//
+// Cognito uses its own protocol rather than plain REST: the operation goes in
+// an X-Amz-Target header, and the content type is x-amz-json-1.1.
+//
+// Three things:
+//   login   - username + password -> an ID token (good for 1 hour) and a
+//             refresh token (long-lived)
+//   refresh - trade the refresh token for a fresh ID token
+//   userId  - pull the user's id out of a token without asking the server
+//
+// The ID token is what every backend call sends as "Bearer <token>".
 struct AuthManager {
     
     static let clientId = "388s6r4q4n7e40gv66m0qea6v8"
@@ -46,6 +58,14 @@ struct AuthManager {
         return (nil, nil)
     }
     
+    // Trades a refresh token for a new ID token, without the user logging in again.
+    //
+    // Currently unused — nothing calls it. It'll be needed once uploads have to
+    // survive a token expiring mid-sync.
+    //
+    // Known weakness: on failure this returns a bare nil and throws away
+    // Cognito's explanation, so "your login was revoked" and "the response was
+    // malformed" look identical. Worth fixing before anything depends on it.
     static func refresh(refreshToken: String) async -> String? {
         let url = URL(string: "https://cognito-idp.\(region).amazonaws.com/")!
         
@@ -81,6 +101,18 @@ struct AuthManager {
         return nil
     }
     
+    // Pulls the user's Cognito id ("sub") out of an ID token.
+    //
+    // A token is three chunks joined by dots: header.payload.signature.
+    // The middle chunk is base64-encoded JSON holding the claims. This decodes
+    // it and reads "sub" — no network call needed, it's already in the token.
+    //
+    // Two fiddly bits: tokens use a URL-safe base64 variant (- and _ instead of
+    // + and /), and drop the trailing "=" padding. Both are put back before
+    // Swift's decoder will accept it.
+    //
+    // The signature isn't verified. That's fine here — it's our own token that
+    // Cognito just issued us, not something accepted from elsewhere.
     static func userId(from idToken: String) -> String? {
         let parts = idToken.split(separator: ".")
         guard parts.count == 3 else {return nil}

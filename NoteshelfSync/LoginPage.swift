@@ -1,5 +1,12 @@
 import SwiftUI
 
+// Login screen.
+//
+// On success: stores both tokens in the Keychain so the next launch can skip
+// this screen, and decodes the user's id out of the ID token.
+//
+// The username and password are hardcoded for development speed. There's no
+// sign-up flow — accounts are created in the Cognito console.
 struct LoginPage: View {
     @Binding var isLoggedIn: Bool
     @Binding var authToken: String

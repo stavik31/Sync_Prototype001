@@ -1,5 +1,18 @@
 import SwiftUI
 
+// Edits one page of one notebook.
+//
+// Which page is showing comes from pageIndex, a position (0, 1, 2...) into the
+// notebook's order array. The uuid and filename are looked up from that.
+//
+// Controls:
+//   top left      back, warns if there are unsaved changes
+//   top right     Save, and a trash that deletes the current page
+//   bottom left   < > to move between pages
+//   bottom right  + to insert a page after this one
+//
+// Anything that changes which page is showing must save the current one first,
+// or whatever was typed is lost.
 struct NoteEditorView: View {
     let notebook: String
     @Binding var noteText: String
@@ -12,15 +25,26 @@ struct NoteEditorView: View {
     @Binding var isLoggedIn: Bool
     @Binding var pageIndex: Int
     
+    // This notebook's page uuids, in order.
+    // Computed rather than stored, so it re-reads notebook.json every time and
+    // can never be stale after a page is added or deleted.
     private var pages: [String] {
         NotebookStore.loadInfo(for: notebook)?.order ?? []
     }
     
+    // The filename of the page currently showing.
+    // order holds bare uuids; the file functions need the ".rtf" on the end.
+    // Returns "" if pageIndex somehow points outside the array.
     private var currentPageFile: String {
         guard pageIndex >= 0 && pageIndex < pages.count else { return "" }
         return "\(pages[pageIndex]).rtf"
     }
     
+    // Moves to another page: saves the current one, then loads the new one.
+    // The save has to happen before pageIndex changes, while currentPageFile
+    // still points at the page being left.
+    // Out-of-range requests are ignored, which is what makes the arrows safe
+    // at the first and last page.
     private func goToPage (_ newIndex: Int) {
         guard newIndex >= 0 && newIndex < pages.count else { return }
         NotebookStore.savePage(notebook, page: currentPageFile, content: noteText)

@@ -1,5 +1,13 @@
 import SwiftUI
 
+// The home screen: every notebook, as a tappable card.
+//
+// Tapping one loads its first page and opens the editor.
+// The + button bottom-right creates a notebook; the trash top-right opens the
+// multi-select delete popup.
+//
+// The circular arrow button in the header is the old sync button. Its body was
+// stripped when the previous backend was removed and it does nothing right now.
 struct NotebookListView: View {
     @Binding var syncedNotebooks: Set<String>
     @Binding var notebooks: [String]

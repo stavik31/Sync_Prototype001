@@ -1,5 +1,33 @@
 import Foundation
 
+// Everything to do with notebooks on disk: creating them, reading and writing
+// pages, adding and deleting pages.
+//
+// Layout, for a notebook the user named "Physics":
+//
+//   Documents/
+//     MyNotes/
+//       Physics/
+//         notebook.json          <- the notebook's uuid + its page order
+//         Pages/
+//           <page-uuid>.rtf      <- one file per page
+//
+// Two things worth knowing:
+//
+// 1. Page files are named by their uuid, not "Page1.rtf". The uuid IS the
+//    identity — nothing else stores it. Page ORDER comes from notebook.json,
+//    not from filenames, so inserting a page in the middle never renames files.
+//
+// 2. There's no last_mod stored anywhere. The filesystem already tracks when
+//    each file was modified; lastMod(_:page:) reads that and converts it to the
+//    unix-milliseconds format the server expects.
+//
+// The local layout deliberately differs from the server's, which is flat and
+// uuid-keyed: {userId}/{notebook-uuid}/{page-uuid}.rtf
+
+// What notebook.json holds.
+//   id    - this notebook's uuid, used as its identity on the server
+//   order - page uuids, in display order. This is the only place page order lives.
 struct NotebookInfo: Codable {
     var id: String
     var order: [String]
@@ -30,6 +58,9 @@ struct NotebookStore {
         return try? JSONDecoder().decode(NotebookInfo.self, from: data)
     }
     
+    // When this page was last written, as unix milliseconds.
+    // Read from the filesystem rather than stored — the OS maintains it for free.
+    // Returns 0 if the file doesn't exist.
     static func lastMod(_ notebook: String, page: String) -> Int64 {
         let attrs = try? FileManager.default.attributesOfItem(atPath: pageURL(notebook, page: page).path)
         guard let date = attrs?[.modificationDate] as? Date else { return 0}
@@ -52,6 +83,9 @@ struct NotebookStore {
         try? content.write(to: pageURL(notebook, page: page), atomically: true, encoding: .utf8)
     }
     
+    // Creates a page and inserts it directly after the given position.
+    // Returns the new page's index so the editor can jump straight to it.
+    // Only notebook.json's order array changes — no files are renamed.
     static func addPage(to notebook: String, after index: Int) -> Int {
         guard var info = loadInfo(for: notebook) else { return index }
         
@@ -66,6 +100,10 @@ struct NotebookStore {
         return newIndex
     }
     
+    // Deletes a page — both the file and its entry in notebook.json.
+    // Returns the index the editor should show next.
+    // If it was the last remaining page, a fresh blank one is created so a
+    // notebook is never empty.
     static func deletePage(from notebook: String, at index: Int) -> Int {
         guard var info = loadInfo(for: notebook) else { return 0}
         guard index >= 0 && index < info.order.count else { return index }
@@ -98,6 +136,9 @@ struct NotebookStore {
         saveInfo(info, for: name)
     }
     
+    // Every notebook on disk, by name.
+    // A folder counts as a notebook only if it contains a notebook.json —
+    // that's what distinguishes one from any other folder that might be there.
     static func listNotebooks() -> [String] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: rootURL().path) else {
             return []

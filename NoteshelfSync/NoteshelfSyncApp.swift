@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+// App entry point. @main marks this as where iOS starts.
+// Everything hangs off ContentView, which owns all the app's state.
 @main
 struct NoteshelfSyncApp: App {
     var body: some Scene {
