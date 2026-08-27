@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var authToken: String = ""
     @State private var refreshToken: String = ""
     @State private var pageIndex: Int = 0
+    @State private var userId: String = ""
     
     var body: some View {
         Group {
@@ -23,7 +24,8 @@ struct ContentView: View {
                 LoginPage(
                     isLoggedIn: $isLoggedIn,
                     authToken: $authToken,
-                    refreshToken: $refreshToken
+                    refreshToken: $refreshToken,
+                    userId: $userId
                 )
             } else {
                 if let notebook = openNotebook {
@@ -65,6 +67,7 @@ struct ContentView: View {
                 authToken = savedToken
                 refreshToken = KeychainManager.load(key: "refreshToken") ?? ""
                 isLoggedIn = true
+                userId = AuthManager.userId(from: savedToken) ?? ""
             }
         }
     }

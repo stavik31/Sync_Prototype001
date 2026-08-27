@@ -20,6 +20,14 @@ struct NoteEditorView: View {
         guard pageIndex >= 0 && pageIndex < pages.count else { return "" }
         return "\(pages[pageIndex]).rtf"
     }
+    
+    private func goToPage (_ newIndex: Int) {
+        guard newIndex >= 0 && newIndex < pages.count else { return }
+        NotebookStore.savePage(notebook, page: currentPageFile, content: noteText)
+        pageIndex = newIndex
+        noteText = NotebookStore.loadPage(notebook, page: currentPageFile)
+        lastSavedText = noteText
+    }
 
     var body: some View {
         ZStack {
@@ -69,6 +77,20 @@ struct NoteEditorView: View {
                         .bold()
                         .padding(.top, 10)
                     Spacer()
+                    
+                    Text("Page \(pageIndex + 1) of \(pages.count)")
+                        .foregroundColor(.gray)
+                        .padding(.top, 10)
+                    
+                    Button(action: {
+                        pageIndex = NotebookStore.deletePage(from: notebook, at: pageIndex)
+                        noteText = NotebookStore.loadPage(notebook, page: currentPageFile)
+                        lastSavedText = noteText
+                    }) {
+                        Image(systemName: "trash.fill")
+                            .foregroundColor(.red)
+                    }
+                        
                 }
                 .padding(.horizontal)
                 .padding(.top, 0)
@@ -89,6 +111,49 @@ struct NoteEditorView: View {
                 }
             }
             .ignoresSafeArea(edges: .top)
+            
+            VStack {
+                Spacer()
+                HStack{
+                    Spacer()
+                    
+                    HStack {
+                        Button(action : {goToPage(pageIndex - 1)}) {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.white)
+                                .frame(width:44, height: 44)
+                                .background(pageIndex > 0 ? Color.indigo : Color.gray)
+                                .clipShape(Circle())
+                        }
+                        .disabled(pageIndex == 0)
+                        
+                        Button(action: {goToPage(pageIndex + 1)}) {
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(pageIndex < pages.count - 1 ? Color.indigo : Color.gray)
+                                .clipShape(Circle())
+                        }
+                        .disabled(pageIndex >= pages.count - 1)
+                        
+                        Spacer()
+                    }
+                    
+                    Button(action: {
+                        NotebookStore.savePage(notebook, page: currentPageFile, content: noteText)
+                        pageIndex = NotebookStore.addPage(to: notebook, after: pageIndex)
+                        noteText = ""
+                        lastSavedText = ""
+                    }) {
+                        Image(systemName: "plus")
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(Color.indigo)
+                            .clipShape(Circle())
+                    }
+                    .padding()
+                }
+            }
             
             if unsavedPopup {
                 Color.black.opacity(0.6)
