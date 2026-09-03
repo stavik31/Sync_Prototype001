@@ -4,33 +4,26 @@ struct AWSSyncRemoteStore: SyncRemoteStore {
     let authToken: String
 
     func isAvailable() async -> Bool {
-        // Check whether a login token is saved right now — read
-        // KeychainManager.load(key: "authToken") in Storage/KeychainManager.swift.
-        // New one-liner, nothing to migrate.
-        false
+//        KeychainManager.load(key: "authToken") != nil
+        !authToken.isEmpty
     }
 
     func accountDetails() async -> AccountDetails? {
-        // Pull the account id out of `authToken` using AuthManager.userId(from:)
-        // in AWS/AuthManager.swift — already exists, no network call needed.
-        // Build an AccountDetails with that id; leave usedBytes/totalBytes nil,
-        // no quota tracking exists yet.
-        nil
+        guard let id = AuthManager.userId(from: authToken) else {return nil }
+        return AccountDetails(accountId: id, name: nil, usedBytes: nil, totalBytes: nil)
     }
 
     func listNotebooks() async -> [RemoteNode] {
-        // Migrate from: SyncAPI.listPackages(authToken:) in AWS/SyncAPI.swift.
-        // Call it, default to [] on nil, then map each PackageMetadata into a
-        // RemoteNode (id -> remoteId/documentId, path -> relativePath,
-        // last_mod -> modifiedAt).
-        []
+        let packages = await SyncAPI.listPackages(authToken: authToken) ?? []
+        return packages.map {
+            RemoteNode(remoteId: $0.id, name: nil, documentId: $0.id, driveId: nil, version: nil, documentVersion: nil, syncVersion: nil, relativePath: $0.path, createdDevice: nil, lastUpdDevice: nil, createdAt: nil, modifiedAt: $0.last_mod, revisionToken: nil, isFolder: false)
+        }
     }
 
     func maxVersionNotebook(documentId: String) async -> RemoteNode? {
-        // Migrate from: SyncAPI.getManifest(packageId:authToken:) in AWS/SyncAPI.swift,
-        // passing documentId as packageId. Take just the `.package` field and map
-        // it to a RemoteNode the same way as listNotebooks above.
-        nil
+        guard let manifest = await SyncAPI.getManifest(packageId: documentId, authToken: authToken) else { return nil }
+        let pkg = manifest.package
+        return RemoteNode(remoteId: pkg.id, name: nil, documentId: pkg.id, driveId: nil, version: nil, documentVersion: nil, syncVersion: nil, relativePath: pkg.path, createdDevice: nil, lastUpdDevice: nil, createdAt: nil, modifiedAt: pkg.last_mod, revisionToken: nil, isFolder: false)
     }
 
     func downloadNotebook(node: RemoteNode, destination: URL, conflictFlow: Bool) async -> DownloadOutcome {
@@ -49,15 +42,43 @@ struct AWSSyncRemoteStore: SyncRemoteStore {
     }
 
     func uploadNotebook(entity: NotebookSyncInfo, stagedFolder: URL) async -> PublishOutcome {
-        // Migrate from: UploadEngine.upload(notebook:packageId:authToken:) in
-        // Logic/UploadEngine.swift — but restructured, not copy-pasted. That
-        // function reads pages straight out of NotebookStore; this one only
-        // ever sees a plain stagedFolder. Still need SyncAPI.getManifest first
-        // to merge with the notebook's unchanged pages before calling
-        // SyncAPI.commit, or commit will delete anything not in stagedFolder.
-        // OPEN QUESTION: confirm whether stagedFolder holds only changed pages
-        // (this assumption) or the whole notebook, before finishing this.
-        PublishOutcome(status: .notStarted, syncInfo: entity)
+        let stagedFiles = (try? FileManager.default.contentsOfDirectory(at: stagedFolder, includingPropertiesForKeys: nil)) ?? []
+        let existing = await SyncAPI.getManifest(packageId: entity.documentId, authToken: authToken)?.files ?? []
+
+        var changed: [PrepareFile] = []
+        for file in stagedFiles {
+            let pageId = file.deletingPathExtension().lastPathComponent
+            changed.append(PrepareFile(id: pageId, last_mod: entity.modified))
+        }
+
+        if !changed.isEmpty {
+            guard let prep = await SyncAPI.prepare(packageId: entity.documentId, files: changed, authToken: authToken) else {
+                return PublishOutcome(status: .notStarted, syncInfo: entity)
+            }
+            for target in prep.uploads {
+                guard let fileURL = stagedFiles.first(where: { $0.deletingPathExtension().lastPathComponent == target.id }),
+                      let content = try? Data(contentsOf: fileURL),
+                      await SyncAPI.put(content: content, to: target.url) else {
+                    return PublishOutcome(status: .notStarted, syncInfo: entity)
+                }
+            }
+        }
+
+        var manifestById = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        for file in stagedFiles {
+            let pageId = file.deletingPathExtension().lastPathComponent
+            manifestById[pageId] = FileEntry(id: pageId, path: file.lastPathComponent, last_mod: entity.modified)
+        }
+
+        guard await SyncAPI.commit(packageId: entity.documentId, path: entity.relativePath,
+                                    lastMod: entity.modified, manifest: Manifest(files: Array(manifestById.values)),
+                                    authToken: authToken) != nil else {
+            return PublishOutcome(status: .notStarted, syncInfo: entity)
+        }
+
+        var updated = entity
+        updated.lstSyncDate = Int64(Date().timeIntervalSince1970 * 1000)
+        return PublishOutcome(status: .uploaded, syncInfo: updated)
     }
 
     func deleteNotebookRemote(entity: NotebookSyncInfo) async -> PublishOutcome {

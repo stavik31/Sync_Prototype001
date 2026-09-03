@@ -235,4 +235,18 @@ struct SyncAPI {
         }
     }
     
+    static func put(content: Data, to urlString: String) async -> Bool {
+        guard let url = URL(string: urlString) else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.httpBody = content
+        do {
+            let(_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            return http.statusCode == 200
+        } catch {
+            return false
+        }
+    }
+    
 }

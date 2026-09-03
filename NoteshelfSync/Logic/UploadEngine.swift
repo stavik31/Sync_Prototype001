@@ -59,71 +59,34 @@ struct UploadEngine {
         let serverManifest = await SyncAPI.getManifest(packageId: packageId, authToken: authToken)
         let serverPages = serverManifest?.files ?? []
         
-        var changed: [PrepareFile] = []
+        let stagingFolder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: stagingFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: stagingFolder) }
+        
         for pageId in info.order {
             let localMod = NotebookStore.lastMod(notebook, page: "\(pageId).rtf")
             let serverMod = serverPages.first(where: { $0.id == pageId})?.last_mod
             if serverMod != localMod {
-                changed.append(PrepareFile(id: pageId, last_mod: localMod))
+                let content = NotebookStore.loadPage(notebook, page: "\(pageId).rtf")
+                try? content.write(to: stagingFolder.appendingPathComponent(pageId), atomically: true, encoding: .utf8)
             }
-        }
-        
-        if !changed.isEmpty {
-            guard let prep = await SyncAPI.prepare(packageId: packageId, files: changed, authToken: authToken) else {
-                return false
-            }
-            
-            for target in prep.uploads {
-                let content = NotebookStore.loadPage(notebook, page: "\(target.id).rtf")
-                if await put(content: content, to: target.url) == false {
-                    return false
-                }
-            }
-        }
-        
-        var files: [FileEntry] = []
-        for pageId in info.order {
-            files.append(FileEntry(id: pageId, path: "/Pages/\(pageId).rtf", last_mod: NotebookStore.lastMod(notebook, page: "\(pageId).rtf")))
         }
         
         let notebookMod = notebookLastMod(notebook)
         
-        guard await SyncAPI.commit(
-            packageId: packageId,
-            path: "MyNotes/\(notebook)",
-            lastMod: notebookMod,
-            manifest: Manifest(files: files),
-            authToken: authToken
-        ) != nil else { return false }
+        let entity = NotebookSyncInfo(
+            documentId: packageId, driveId: nil, modified: notebookMod, deleted: false,
+            version: nil, crtDevice: nil, lstUpdDevice: nil, relativePath: "MyNotes/\(notebook)",
+            lstSyncDate: nil, errorCode: nil, errorDescription: nil, conflicted: false,
+            forceFetchOrPublish: false, accountId: nil, deletionTimestamp: nil,
+            documentVersion: nil, crtDt: nil
+        )
+        
+        let remoteStore = AWSSyncRemoteStore(authToken: authToken)
+        let outcome = await remoteStore.uploadNotebook(entity: entity, stagedFolder: stagingFolder)
+        guard outcome.status == .uploaded else { return false }
         
         SyncTable.save(notebook: notebook, packageId: packageId, lastMod: notebookMod)
         return true
-    }
-
-    // Sends one page's content to a presigned url.
-    // No Authorization header — permission is already inside the url.
-    static func put(content: String, to urlString: String) async -> Bool {
-
-        guard let url = URL(string: urlString) else { return false }
-
-                var request = URLRequest(url: url)
-                request.httpMethod = "PUT"
-                request.httpBody = content.data(using: .utf8)
-
-                do {
-                    let (_, response) = try await URLSession.shared.data(for: request)
-                    guard let http = response as? HTTPURLResponse else { return false }
-
-                    if http.statusCode != 200 {
-                        print("put failed: \(http.statusCode)")
-                        return false
-                    }
-
-                    return true
-
-                } catch {
-                    print("put error: \(error)")
-                    return false
-                }
     }
 }

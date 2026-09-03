@@ -86,6 +86,7 @@ struct NotebookListView: View {
                 
                 ForEach(notebooks, id: \.self) { notebook in
                     NotebookCard(notebook: notebook, isSynced: syncedNotebooks.contains(notebook), onTap: {
+                        pageIndex = 0
                         noteText = NotebookStore.loadPage(notebook, page: "\(NotebookStore.loadInfo(for: notebook)?.order.first ?? "").rtf")
                         lastSavedText = noteText
                         openNotebook = notebook
