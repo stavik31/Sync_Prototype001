@@ -2,10 +2,11 @@ import SwiftUI
 
 // One row in the notebook list: icon, name, and a sync dot.
 //
-// The dot is green when isSynced is true. That currently comes from
-// syncedNotebooks, which is held in memory only and resets to empty on every
-// launch — so it reflects "synced during this session", not the real state.
-// Reading it from SyncTable instead would make it survive a restart.
+// isSynced is a plain Bool passed in by the caller (NotebookListView) — this
+// view holds no state of its own and does no comparison itself. The caller
+// recomputes it fresh on every redraw by comparing SyncTable's last-upload
+// record against the notebook's current mod time, so the dot can never go
+// stale the way a cached value could.
 struct NotebookCard: View {
     let notebook: String
     let isSynced: Bool

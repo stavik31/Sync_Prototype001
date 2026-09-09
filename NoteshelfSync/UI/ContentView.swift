@@ -13,7 +13,7 @@ import SwiftUI
 //   logged in, notebook  -> NoteEditorView
 struct ContentView: View {
     
-    @State private var syncedNotebooks: Set<String> = []
+    
     @State private var createPopup: Bool = false
     @State private var deletePopup: Bool = false
     @State private var selectedForDeletion: Set<String> = []
@@ -47,14 +47,12 @@ struct ContentView: View {
                         openNotebook: $openNotebook,
                         unsavedPopup: $unsavedPopup,
                         authToken: $authToken,
-                        syncedNotebooks: $syncedNotebooks,
                         refreshToken: $refreshToken,
                         isLoggedIn: $isLoggedIn,
                         pageIndex: $pageIndex
                     )
                 } else {
                     NotebookListView(
-                        syncedNotebooks: $syncedNotebooks,
                         notebooks: $notebooks,
                         openNotebook: $openNotebook,
                         createPopup: $createPopup,
@@ -72,15 +70,32 @@ struct ContentView: View {
                 }
             }
         }
-        // Runs once when the app opens: load the notebook list from disk, and
-        // log the user straight back in if a token was saved last time.
+        // Runs once when the app opens (not on every foreground — see the
+        // simulator gotcha in the project README/CLAUDE.md if a change on disk
+        // ever seems to not show up: it won't, until a true relaunch).
         //
-        // Note this only checks that a token EXISTS — it never asks whether
-        // it's still valid. A stale token gets you past the login screen and
-        // only fails later, when something actually calls the server.
+        // Three things happen here:
+        //  1. Load the notebook list from disk.
+        //  2. Point SyncAPI's three storage hooks at Keychain. This is the one
+        //     piece of setup SyncAPI can't do itself — see SyncAPI.swift's
+        //     header for why it's shaped as closures instead of a direct call.
+        //     Nothing that hits the network works correctly until this runs.
+        //  3. Log the user straight back in if a token was saved last time.
+        //     This only checks that a token EXISTS — it never asks whether
+        //     it's still valid. A stale token gets you past the login screen
+        //     and only fails later, when something actually calls the server.
         .onAppear {
             notebooks = NotebookStore.listNotebooks()
-            
+
+            SyncAPI.loadRefreshToken = { KeychainManager.load(key: "refreshToken") }
+            SyncAPI.onTokenRefreshed = { newToken in
+                KeychainManager.save(token: newToken, key: "authToken")
+            }
+            SyncAPI.onRefreshFailed = {
+                _ = KeychainManager.delete(key: "authToken")
+                _ = KeychainManager.delete(key: "refreshToken")
+            }
+
             if let savedToken = KeychainManager.load(key: "authToken") {
                 authToken = savedToken
                 refreshToken = KeychainManager.load(key: "refreshToken") ?? ""

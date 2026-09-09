@@ -75,4 +75,9 @@ struct SyncTable {
                                      conflict <- false
                                     ))
     }
+    
+    static func remove(notebook: String) {
+        guard let db else { return }
+        _ = try? db.run(table.filter(name == notebook).delete())
+    }
 }

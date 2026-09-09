@@ -20,7 +20,7 @@ struct NoteEditorView: View {
     @Binding var openNotebook: String?
     @Binding var unsavedPopup: Bool
     @Binding var authToken: String
-    @Binding var syncedNotebooks: Set<String>
+
     @Binding var refreshToken: String
     @Binding var isLoggedIn: Bool
     @Binding var pageIndex: Int
@@ -77,8 +77,6 @@ struct NoteEditorView: View {
                     Button(action: {
                         NotebookStore.savePage(notebook, page: currentPageFile, content: noteText)
                         lastSavedText = noteText
-                        
-// used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4
                     }) {
                         Text("Save")
                             .foregroundColor(.black)
@@ -199,9 +197,7 @@ struct NoteEditorView: View {
                     Button(action: {
                         NotebookStore.savePage(notebook, page: currentPageFile, content: noteText)
                         lastSavedText = noteText
-                        
-// used to upload the saved note and handle 401 refresh/retry — see SyncManager.swift history / P4
-                        
+
                         unsavedPopup = false
                         openNotebook = nil
                     }) {

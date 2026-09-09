@@ -44,17 +44,20 @@ struct NotebookStore {
         rootURL().appendingPathComponent(name)
     }
     
+    // The metadata file's path is fixed and deterministic — always
+    // "<notebook folder>/notebook.json" — so finding it never requires
+    // scanning the folder's contents.
     static func notebookJSONURL(_ name: String) -> URL {
         notebookURL(name).appendingPathComponent("notebook.json")
     }
-    
+
     static func saveInfo(_ info: NotebookInfo, for name: String) {
         guard let data = try? JSONEncoder().encode(info) else { return }
         try? data.write(to: notebookJSONURL(name), options: .atomic)
     }
-    
+
     static func loadInfo(for name: String) -> NotebookInfo? {
-        guard let data = try? Data(contentsOf: notebookJSONURL(name)) else { return nil}
+        guard let data = try? Data(contentsOf: notebookJSONURL(name)) else { return nil }
         return try? JSONDecoder().decode(NotebookInfo.self, from: data)
     }
     
@@ -125,15 +128,27 @@ struct NotebookStore {
         return min(index, info.order.count - 1)
     }
     
+    // Creates the folder structure, one blank first page, and notebook.json
+    // with a fresh id. No validation on `name` — an empty or duplicate name
+    // is accepted as-is (see CreateNotebookPopup's comment).
     static func createNotebook(named name: String) {
         try? FileManager.default.createDirectory(at: pagesURL(name), withIntermediateDirectories: true)
-        
+
         let pageId = UUID().uuidString
         let firstPage = pagesURL(name).appendingPathComponent("\(pageId).rtf")
         try? "".write(to: firstPage, atomically: true, encoding: .utf8)
-        
+
         let info = NotebookInfo(id: UUID().uuidString, order: [pageId])
         saveInfo(info, for: name)
+    }
+
+    // Removes the entire notebook folder (notebook.json, Pages/, everything)
+    // from disk in one call — this is genuinely a full local delete, not just
+    // an in-memory removal. It has no knowledge of the server, though: nothing
+    // here tells AWS this notebook is gone (see
+    // AWSSyncRemoteStore.deleteNotebookRemote, still a stub).
+    static func deleteNotebook(named name: String) {
+        try? FileManager.default.removeItem(at: notebookURL(name))
     }
     
     // Every notebook on disk, by name.
@@ -143,6 +158,15 @@ struct NotebookStore {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: rootURL().path) else {
             return []
         }
-        return names.filter {FileManager.default.fileExists(atPath: notebookJSONURL($0).path)}
+        return names.filter { FileManager.default.fileExists(atPath: notebookJSONURL($0).path) }
+    }
+
+    // Same idea as lastMod, but for notebook.json itself rather than a page —
+    // used to decide whether the notebook's metadata (its id/page order) needs
+    // re-uploading, separately from any individual page.
+    static func notebookInfoLastMod(_ name: String) -> Int64 {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: notebookJSONURL(name).path)
+        guard let date = attrs?[.modificationDate] as? Date else { return 0 }
+        return Int64(date.timeIntervalSince1970 * 1000)
     }
 }

@@ -6,10 +6,12 @@ import SwiftUI
 // The + button bottom-right creates a notebook; the trash top-right opens the
 // multi-select delete popup.
 //
-// The circular arrow button in the header is the old sync button. Its body was
-// stripped when the previous backend was removed and it does nothing right now.
+// The circular arrow button in the header is the download/refresh button.
+// It's intentionally still dead — no body — because it depends on
+// AWSSyncRemoteStore.downloadNotebook, which is still a stub. Only once
+// download is real does this get wired up; this isn't a forgotten TODO.
 struct NotebookListView: View {
-    @Binding var syncedNotebooks: Set<String>
+
     @Binding var notebooks: [String]
     @Binding var openNotebook: String?
     @Binding var createPopup: Bool
@@ -29,8 +31,25 @@ struct NotebookListView: View {
         ZStack {
             
             VStack(spacing: 0){
-                Color.indigo
-                    .frame(height: 80)
+                ZStack(alignment: .trailing) {
+                    Color.indigo
+                    
+                    Button(action: {
+                        KeychainManager.delete(key: "authToken")
+                        KeychainManager.delete(key: "refreshToken")
+                        authToken = ""
+                        refreshToken = ""
+                        userId = ""
+                        isLoggedIn = false
+                    }) {
+                        Text("Logout")
+                            .font(.system(size: 19))
+                            .foregroundColor(.white)
+                            .padding(.trailing, 20)
+                            .padding(.top, 20)
+                    }
+                }
+                .frame(height: 80)
                 
                 
                 Rectangle()
@@ -49,7 +68,19 @@ struct NotebookListView: View {
                         Task {
                             uploading = true
                             await UploadEngine.uploadAll(userId: userId, authToken: authToken)
-                            syncedNotebooks = Set(notebooks.filter { SyncTable.record(for: $0) != nil })
+
+                            // SyncAPI clears both Keychain entries itself if a mid-upload
+                            // refresh fails — nothing propagates that back to isLoggedIn
+                            // directly, so this is how the UI notices the session died
+                            // during this call rather than waiting for next launch.
+                            if KeychainManager.load(key: "authToken") == nil {
+                                authToken = ""
+                                refreshToken = ""
+                                userId = ""
+                                isLoggedIn = false
+                            }
+                            
+
                             uploading = false
                         }
                     }) {
@@ -66,7 +97,7 @@ struct NotebookListView: View {
                     .disabled(uploading)
                     
                     Button(action: {
-// used to call fetchChanges, handle 401 refresh/retry, and write incoming notes — see SyncManager.swift history / P4
+                        // Empty on purpose — see the comment above the header.
                     }){
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 25))
@@ -84,13 +115,15 @@ struct NotebookListView: View {
                     }
                 }
                 
-                ForEach(notebooks, id: \.self) { notebook in
-                    NotebookCard(notebook: notebook, isSynced: syncedNotebooks.contains(notebook), onTap: {
-                        pageIndex = 0
-                        noteText = NotebookStore.loadPage(notebook, page: "\(NotebookStore.loadInfo(for: notebook)?.order.first ?? "").rtf")
-                        lastSavedText = noteText
-                        openNotebook = notebook
-                    })
+                ScrollView {
+                    ForEach(notebooks, id: \.self) { notebook in
+                        NotebookCard(notebook: notebook, isSynced: SyncTable.record(for: notebook)?.lastMod == UploadEngine.notebookLastMod(notebook), onTap: {
+                            pageIndex = 0
+                            noteText = NotebookStore.loadPage(notebook, page: "\(NotebookStore.loadInfo(for: notebook)?.order.first ?? "").rtf")
+                            lastSavedText = noteText
+                            openNotebook = notebook
+                        })
+                    }
                 }
                 
                 Spacer()

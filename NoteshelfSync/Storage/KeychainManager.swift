@@ -8,12 +8,13 @@ import Security
 // isn't sensitive in the same way, so it lives as ordinary files.
 //
 // Two entries, keyed by name: "authToken" (the ID token) and "refreshToken".
-//
-// Worth knowing: every OSStatus is ignored, so a failed write is silent — you
-// get nothing back on the next read and no indication why.
 struct KeychainManager {
 
-    static func save(token: String, key: String) {
+    // Deletes any existing entry under this key first — SecItemAdd fails if one
+    // already exists, so this is really "overwrite", not just "insert".
+    // The OSStatus from each call is only used as a success/fail Bool; the
+    // actual code is discarded, so a failure here never says why it failed.
+    static func save(token: String, key: String) -> Bool {
         let data = Data(token.utf8)
 
         let query: [String: Any] = [
@@ -23,9 +24,11 @@ struct KeychainManager {
         ]
 
         SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
+        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
     }
 
+    // kSecMatchLimitOne caps this at a single result — there should only ever
+    // be one item per key anyway, since save() always deletes before adding.
     static func load(key: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -44,12 +47,15 @@ struct KeychainManager {
         return nil
     }
 
-    static func delete(key: String) {
+    // errSecItemNotFound counts as success — deleting something that's already
+    // gone should be a no-op, not a failure, so callers can call this freely.
+    static func delete(key: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key
         ]
 
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

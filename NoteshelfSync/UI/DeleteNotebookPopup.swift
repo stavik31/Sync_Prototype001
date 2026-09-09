@@ -2,10 +2,14 @@ import SwiftUI
 
 // Popup for selecting notebooks and deleting them.
 //
-// KNOWN BUG: this only removes names from the in-memory list. The folders stay
-// on disk, so every "deleted" notebook comes back on the next launch, when the
-// list is rebuilt by scanning the filesystem. Needs a NotebookStore function
-// that actually removes the folder.
+// Deletes on three fronts: NotebookStore.deleteNotebook removes the folder
+// from disk, SyncTable.remove drops its upload-history row, and the in-memory
+// `notebooks` array is filtered so the UI updates immediately.
+//
+// Not covered: the server never learns about the deletion —
+// AWSSyncRemoteStore.deleteNotebookRemote is still a stub — so a notebook
+// deleted here can still exist (and get re-synced back down, once download
+// exists) on the AWS side.
 struct DeleteNotebooksPopup: View {
     @Binding var isPresented: Bool
     @Binding var notebooks: [String]
@@ -45,6 +49,10 @@ struct DeleteNotebooksPopup: View {
                 }
                 
                 Button(action: {
+                    for notebook in selected {
+                        NotebookStore.deleteNotebook(named: notebook)
+                        SyncTable.remove(notebook: notebook)
+                    }
                     notebooks.removeAll { selected.contains($0) }
                     selected.removeAll()
                     isPresented = false

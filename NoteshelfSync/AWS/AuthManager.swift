@@ -60,12 +60,14 @@ struct AuthManager {
     
     // Trades a refresh token for a new ID token, without the user logging in again.
     //
-    // Currently unused — nothing calls it. It'll be needed once uploads have to
-    // survive a token expiring mid-sync.
+    // Called from SyncAPI.send() whenever a request comes back 401 mid-sync —
+    // this is what lets an upload survive an access token expiring partway
+    // through, without the user seeing the login screen again.
     //
     // Known weakness: on failure this returns a bare nil and throws away
     // Cognito's explanation, so "your login was revoked" and "the response was
-    // malformed" look identical. Worth fixing before anything depends on it.
+    // malformed" look identical. Worth fixing before anything depends on
+    // telling those two apart.
     static func refresh(refreshToken: String) async -> String? {
         let url = URL(string: "https://cognito-idp.\(region).amazonaws.com/")!
         
@@ -88,7 +90,7 @@ struct AuthManager {
         
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
-            
+
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let authResult = json["AuthenticationResult"] as? [String: Any],
                let idToken = authResult["IdToken"] as? String {
@@ -97,7 +99,7 @@ struct AuthManager {
         } catch {
             print("Refresh request failed: \(error)")
         }
-        
+
         return nil
     }
     
