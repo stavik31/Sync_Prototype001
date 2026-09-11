@@ -26,6 +26,7 @@ struct NotebookListView: View {
     @Binding var pageIndex: Int
     @Binding var userId: String
     @State private var uploading = false
+    @State private var downloading = false
 
     var body: some View {
         ZStack {
@@ -63,6 +64,29 @@ struct NotebookListView: View {
                         .font(.title)
                         .bold()
                     Spacer()
+                    
+                    Button(action: {
+                        Task {
+                            downloading = true
+                            let packages = await SyncAPI.listPackages(authToken: authToken) ?? []
+                            for package in packages {
+                                _ = await DownloadEngine.syncNotebook(package: package, authToken: authToken)
+                            }
+                            notebooks = NotebookStore.listNotebooks()
+                            downloading = false
+                        }
+                    }) {
+                        if downloading {
+                            ProgressView()
+                                .frame(width: 45, height: 45)
+                        } else {
+                            Image(systemName: "icloud.and.arrow.down")
+                                .font(.system(size: 25))
+                                .foregroundStyle(.black)
+                                .padding(10)
+                        }
+                    }
+                    .disabled(downloading)
                     
                     Button(action: {
                         Task {

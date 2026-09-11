@@ -30,6 +30,7 @@ struct UploadEngine {
             
             if let serverMod, serverMod != record.lastMod {
                 print("conflict: \(notebook), skipped")
+                SyncTable.markConflict(notebook: notebook, conflict: true)
                 continue
             }
             

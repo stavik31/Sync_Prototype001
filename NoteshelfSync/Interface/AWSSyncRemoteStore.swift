@@ -59,13 +59,317 @@ struct AWSSyncRemoteStore: SyncRemoteStore {
         return RemoteNode(remoteId: pkg.id, name: nil, documentId: pkg.id, driveId: nil, version: nil, documentVersion: nil, syncVersion: nil, relativePath: pkg.path, createdDevice: nil, lastUpdDevice: nil, createdAt: nil, modifiedAt: pkg.last_mod, revisionToken: nil, isFolder: false)
     }
 
+    // Ported from Madhav's AppSync repo (Download.swift: downloadFiles/
+    // downloadFileToStaging/promoteCompletePackageToMainStorage), adapted here.
+    // Two deliberate differences from his version, so they don't look like
+    // mistakes if he reads this later:
+    //
+    // 1. No `packagesDirectory`/`packagePath`-building. His code builds the
+    //    local package path itself from a raw path string (and has to guard
+    //    against double-nesting "MyNotes/X" inside it). Doesn't apply here:
+    //    `destination` is already the final resolved folder, handed in by
+    //    the caller — there's nothing to build.
+    //
+    // 2. No general SyncTable update/verify calls. His `downloadFiles`
+    //    updates and verifies SyncTable itself. Here, that's left for
+    //    DownloadEngine.syncNotebook (the decision-logic layer that calls
+    //    this method) — same split as UploadEngine deciding what to upload
+    //    vs. this uploadNotebook just doing it. The one SyncTable touch his
+    //    version has inside the final version check (marking a conflict) is
+    //    handled here by returning DownloadOutcome(status: .remoteChanged,
+    //    ...) instead — that status exists on this protocol specifically for
+    //    "the server moved since we started, re-check before overwriting."
+    //
+    // Everything else — the copy-existing-package-into-staging step, the
+    // final server version re-check before promoting, the staging
+    // mechanics, the backup/restore promotion, the modification-date step,
+    // the print statements — matches his structure closely, including the
+    // copy-existing step's known limitation: it never removes a page that
+    // was deleted server-side, since a deleted page just isn't in the new
+    // manifest to overwrite it. Kept as-is per instruction, to fix later.
+    //
+    // The token (self.authToken here vs. his AuthManager.shared) and the
+    // network calls (SyncAPI.getManifest/download, which go through this
+    // app's 401-refresh handling, vs. his raw URLSession calls) are the two
+    // changes that are non-negotiable regardless of the above.
     func downloadNotebook(node: RemoteNode, destination: URL, conflictFlow: Bool) async -> DownloadOutcome {
-        // TODO — second intern. Nothing to migrate: no download function exists
-        // in SyncAPI yet. Needs a new AWS Lambda + a new SyncAPI.download(...)
-        // function (mirroring SyncAPI.prepare's shape) before this can be real.
-        // See the plan page's Phase 3 section for the exact steps.
-        DownloadOutcome(status: .failed, message: "not implemented")
-    }
+            guard let documentId = node.documentId else {
+                return DownloadOutcome(status: .failed, message: "node has no documentId")
+            }
+
+            guard let manifest = await SyncAPI.getManifest(packageId: documentId, authToken: authToken) else {
+                return DownloadOutcome(status: .failed, message: "could not get manifest")
+            }
+
+            let operationStagingDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let packageStagingDirectory = operationStagingDirectory.appendingPathComponent(destination.lastPathComponent, isDirectory: true)
+            let packageExists = FileManager.default.fileExists(atPath: destination.path)
+
+            do {
+                try FileManager.default.createDirectory(at: operationStagingDirectory, withIntermediateDirectories: true)
+
+                if packageExists {
+                    print("")
+                    print("📋 EXISTING PACKAGE")
+                    print("Copying ONLY package into staging")
+                    print("")
+                    print("FROM:")
+                    print(destination.path)
+                    print("")
+                    print("TO:")
+                    print(packageStagingDirectory.path)
+                    print("")
+
+                    try FileManager.default.copyItem(at: destination, to: packageStagingDirectory)
+
+                    print("✅ Existing package copied to staging")
+
+                } else {
+                    print("")
+                    print("🆕 NEW PACKAGE")
+                    print("Creating package in staging")
+                    print("")
+
+                    try FileManager.default.createDirectory(at: packageStagingDirectory, withIntermediateDirectories: true)
+
+                    print("✅ Empty package created in staging")
+                }
+
+                for file in manifest.files {
+                    print("")
+                    print("⬇️ Downloading file:", file.id)
+                    print("Path:", file.path)
+
+                    guard let downloadedFile = await SyncAPI.download(packageId: documentId, fileId: file.id, authToken: authToken) else {
+                        print("❌ Could not get download information")
+                        print("File:", file.id)
+                        removeStagingDirectory(operationStagingDirectory)
+                        return DownloadOutcome(status: .failed, message: "missing download URL for \(file.id)")
+                    }
+
+                    guard await downloadFileToStaging(downloadedFile: downloadedFile, expectedPath: file.path, packageStagingDirectory: packageStagingDirectory) else {
+                        print("❌ File failed to download")
+                        print("File:", file.id)
+                        removeStagingDirectory(operationStagingDirectory)
+                        return DownloadOutcome(status: .failed, message: "download failed for \(file.id)")
+                    }
+
+                    print("✅ File successfully updated in staging:", file.id)
+                }
+
+                print("")
+                print("=====================================")
+                print("🔍 FINAL SERVER VERSION CHECK")
+                print("Package:", documentId)
+                print("Original server lastMod:", manifest.package.last_mod)
+                print("=====================================")
+                print("")
+
+                guard let latestPackages = await SyncAPI.listPackages(authToken: authToken) else {
+                    print("❌ Could not get latest server metadata")
+                    print("🛑 Package promotion cancelled")
+                    print("🛑 Main package was NOT changed")
+                    removeStagingDirectory(operationStagingDirectory)
+                    return DownloadOutcome(status: .failed, message: "could not verify latest server metadata")
+                }
+
+                guard let latestServerPackage = latestPackages.first(where: { $0.id == documentId }) else {
+                    print("❌ Package no longer exists on server")
+                    print("🛑 Package promotion cancelled")
+                    print("🛑 Main package was NOT changed")
+                    removeStagingDirectory(operationStagingDirectory)
+                    return DownloadOutcome(status: .failed, message: "package no longer exists on server")
+                }
+
+                print("Latest server lastMod:", latestServerPackage.last_mod)
+
+                if latestServerPackage.last_mod != manifest.package.last_mod {
+                    print("")
+                    print("🚨🚨🚨 SERVER VERSION CHANGED 🚨🚨🚨")
+                    print("")
+                    print("Someone modified/uploaded this package while it was downloading.")
+                    print("")
+                    print("🛑 DOWNLOAD CANCELLED")
+                    print("🛑 MAIN PACKAGE WAS NOT TOUCHED")
+                    print("🧹 STAGING PACKAGE WILL BE DELETED")
+                    print("")
+
+                    removeStagingDirectory(operationStagingDirectory)
+                    return DownloadOutcome(status: .remoteChanged, message: "server changed during download")
+                }
+
+                print("")
+                print("✅ FINAL SERVER VERSION CHECK PASSED")
+                print("🚚 Safe to promote package")
+                print("")
+
+                guard promoteCompletePackageToMainStorage(destination: destination, packageStagingDirectory: packageStagingDirectory, operationStagingDirectory: operationStagingDirectory) else {
+                    print("❌ Failed to promote complete package")
+                    removeStagingDirectory(operationStagingDirectory)
+                    return DownloadOutcome(status: .failed, message: "could not promote package")
+                }
+
+                for file in manifest.files {
+                    let localFileURL = destination.appendingPathComponent(file.path)
+                    guard FileManager.default.fileExists(atPath: localFileURL.path) else { continue }
+                    setModificationDate(at: localFileURL, unixTimestampMilliseconds: manifest.package.last_mod)
+                }
+
+                removeStagingDirectory(operationStagingDirectory)
+
+                return DownloadOutcome(status: .downloaded, message: nil)
+
+            } catch {
+                print("❌ Package download error:")
+                print(error.localizedDescription)
+                removeStagingDirectory(operationStagingDirectory)
+                return DownloadOutcome(status: .failed, message: error.localizedDescription)
+            }
+        }
+
+        private func downloadFileToStaging(downloadedFile: DownloadedFile, expectedPath: String, packageStagingDirectory: URL) async -> Bool {
+            guard let url = URL(string: downloadedFile.downloadUrl) else {
+                print("❌ Invalid presigned URL")
+                return false
+            }
+
+            guard let scheme = url.scheme, scheme == "https" || scheme == "http" else {
+                print("❌ Download URL is not HTTP/HTTPS")
+                return false
+            }
+
+            do {
+                let (temporaryURL, response) = try await URLSession.shared.download(from: url)
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("❌ Invalid S3 response")
+                    return false
+                }
+
+                guard httpResponse.statusCode == 200 else {
+                    print("❌ S3 download failed:", httpResponse.statusCode)
+                    return false
+                }
+
+                let stagedFileURL = packageStagingDirectory.appendingPathComponent(expectedPath)
+                let parentDirectory = stagedFileURL.deletingLastPathComponent()
+
+                try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
+
+                if FileManager.default.fileExists(atPath: stagedFileURL.path) {
+                    print("♻️ Replacing file INSIDE staging")
+                    print(stagedFileURL.path)
+                    try FileManager.default.removeItem(at: stagedFileURL)
+                }
+
+                try FileManager.default.moveItem(at: temporaryURL, to: stagedFileURL)
+
+                print("📦 File placed in staging:")
+                print(stagedFileURL.path)
+
+                return true
+
+            } catch {
+                print("❌ S3 download/staging error:")
+                print(error.localizedDescription)
+                return false
+            }
+        }
+
+        private func promoteCompletePackageToMainStorage(destination: URL, packageStagingDirectory: URL, operationStagingDirectory: URL) -> Bool {
+            let backupDirectory = operationStagingDirectory.appendingPathComponent("OldPackageBackup", isDirectory: true)
+
+            do {
+                try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+                guard FileManager.default.fileExists(atPath: packageStagingDirectory.path) else {
+                    print("❌ Staging package does not exist")
+                    print(packageStagingDirectory.path)
+                    return false
+                }
+
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    print("")
+                    print("📦 Moving old Main package to backup")
+                    print("FROM:", destination.path)
+                    print("TO:", backupDirectory.path)
+
+                    try FileManager.default.moveItem(at: destination, to: backupDirectory)
+
+                    print("✅ Old Main package backed up")
+                }
+
+                print("")
+                print("🚚 Moving COMPLETE package to Main")
+                print("FROM:", packageStagingDirectory.path)
+                print("TO:", destination.path)
+
+                do {
+                    try FileManager.default.moveItem(at: packageStagingDirectory, to: destination)
+                    print("")
+                    print("✅ COMPLETE PACKAGE promoted to Main")
+
+                } catch {
+                    print("")
+                    print("❌ Could not move staging package to Main")
+                    print(error.localizedDescription)
+
+                    if FileManager.default.fileExists(atPath: backupDirectory.path) {
+                        print("♻️ Restoring old Main package")
+                        try? FileManager.default.moveItem(at: backupDirectory, to: destination)
+                        print("✅ Old Main package restored")
+                    }
+
+                    return false
+                }
+
+                if FileManager.default.fileExists(atPath: backupDirectory.path) {
+                    try? FileManager.default.removeItem(at: backupDirectory)
+                    print("🧹 Old package backup removed")
+                }
+
+                return true
+
+            } catch {
+                print("")
+                print("❌ Complete package promotion error:")
+                print(error.localizedDescription)
+
+                if !FileManager.default.fileExists(atPath: destination.path),
+                   FileManager.default.fileExists(atPath: backupDirectory.path) {
+                    print("♻️ Attempting to restore old Main package")
+                    try? FileManager.default.moveItem(at: backupDirectory, to: destination)
+                }
+
+                return false
+            }
+        }
+
+        private func removeStagingDirectory(_ operationStagingDirectory: URL) {
+            do {
+                if FileManager.default.fileExists(atPath: operationStagingDirectory.path) {
+                    try FileManager.default.removeItem(at: operationStagingDirectory)
+                    print("🧹 Staging area removed")
+                }
+            } catch {
+                print("⚠️ Could not completely remove staging")
+                print(error.localizedDescription)
+            }
+        }
+
+        private func setModificationDate(at url: URL, unixTimestampMilliseconds: Int64) {
+            let seconds = TimeInterval(unixTimestampMilliseconds) / 1000
+            let date = Date(timeIntervalSince1970: seconds)
+
+            do {
+                try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+                print("🕒 Local modification date updated")
+                print("File:", url.path)
+            } catch {
+                print("⚠️ Could not set modification date")
+                print(error.localizedDescription)
+            }
+        }
 
     func readTombstones() async -> [Tombstone] {
         // TODO — second intern. Nothing to migrate: no deletion-tracking table
@@ -111,7 +415,8 @@ struct AWSSyncRemoteStore: SyncRemoteStore {
 
         // 4. prepare + upload — skipped entirely if nothing changed.
         if !changed.isEmpty {
-            guard let prep = await SyncAPI.prepare(packageId: entity.documentId, files: changed, authToken: authToken) else {
+            let currentEtag = await lockState.etag
+            guard let prep = await SyncAPI.prepare(packageId: entity.documentId, files: changed, authToken: authToken, lockEtag: currentEtag) else {
                 await releaseAndStop()
                 return PublishOutcome(status: .notStarted, syncInfo: entity)
             }
@@ -169,8 +474,9 @@ struct AWSSyncRemoteStore: SyncRemoteStore {
 
         // 7. Publish. This is the point of no return — see SyncAPI.commit's
         // own warning about the manifest being the complete truth.
+        let commitEtag = await lockState.etag
         guard await SyncAPI.commit(packageId: entity.documentId, path: entity.relativePath,
-                                   lastMod: entity.modified, manifest: Manifest(files: Array(manifestById.values)), authToken: authToken) != nil else {
+                                   lastMod: entity.modified, manifest: Manifest(files: Array(manifestById.values)), authToken: authToken, lockEtag: commitEtag) != nil else {
             await releaseAndStop()
             return PublishOutcome(status: .notStarted, syncInfo: entity)
         }

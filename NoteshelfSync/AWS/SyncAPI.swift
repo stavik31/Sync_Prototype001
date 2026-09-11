@@ -60,6 +60,7 @@ struct PrepareRequest: Codable {
     let action: String
     let packageId: String
     let files: [PrepareFile]
+    let lockEtag: String
 }
 
 // What the server hands back per page.
@@ -94,6 +95,7 @@ struct CommitRequest: Codable {
     let path: String
     let last_mod: Int64
     let manifest: Manifest
+    let lockEtag: String
 }
 
 // Reply from commit.
@@ -299,7 +301,7 @@ struct SyncAPI {
     // pointing at a staging area — the live notebook is untouched until commit.
     // The server builds the real address itself from the ids you send, so a
     // client can't write outside its own space.
-    static func prepare(packageId: String, files: [PrepareFile], authToken: String) async -> PrepareResponse? {
+    static func prepare(packageId: String, files: [PrepareFile], authToken: String, lockEtag: String) async -> PrepareResponse? {
         guard let url = URL(string: "\(baseURL)/upload") else { return nil }
 
         var request = URLRequest(url: url)
@@ -307,7 +309,7 @@ struct SyncAPI {
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body = PrepareRequest(action: "prepare", packageId: packageId, files: files)
+        let body = PrepareRequest(action: "prepare", packageId: packageId, files: files, lockEtag: lockEtag)
 
         do {
             guard let bodyData = try? JSONEncoder().encode(body) else { return nil }
@@ -337,7 +339,7 @@ struct SyncAPI {
     // partial list and you delete pages you didn't mean to.
     //
     // Only call this once every page has uploaded successfully.
-    static func commit(packageId: String, path: String, lastMod: Int64, manifest: Manifest, authToken: String) async -> CommitResponse? {
+    static func commit(packageId: String, path: String, lastMod: Int64, manifest: Manifest, authToken: String, lockEtag: String) async -> CommitResponse? {
         guard let url = URL(string: "\(baseURL)/upload") else { return nil }
 
         var request = URLRequest(url: url)
@@ -345,7 +347,7 @@ struct SyncAPI {
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body = CommitRequest(action: "commit", packageId: packageId, path: path, last_mod: lastMod, manifest: manifest)
+        let body = CommitRequest(action: "commit", packageId: packageId, path: path, last_mod: lastMod, manifest: manifest, lockEtag: lockEtag)
 
         do {
             guard let bodyData = try? JSONEncoder().encode(body) else { return nil }
@@ -565,6 +567,54 @@ struct SyncAPI {
             
         } catch {
             print("releaseLock error: \(error)")
+            return nil
+        }
+    }
+    
+    // MADHAV CODE
+    static func download(packageId: String, fileId: String, authToken: String) async -> DownloadedFile? {
+        guard let url = URL(string: "\(baseURL)/download") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body = DownloadRequest(packages: [DownloadPackage(packageId: packageId, files: [fileId])])
+
+        do {
+            guard let bodyData = try? JSONEncoder().encode(body) else { return nil }
+            request.httpBody = bodyData
+
+            guard let (data, http) = await send(request) else { return nil }
+
+            guard http.statusCode == 200 else {
+                print("❌ Download API failed:", http.statusCode)
+                return nil
+            }
+
+            let decoded = try JSONDecoder().decode(DownloadResponse.self, from: data)
+
+            guard let downloadedPackage = decoded.packages.first else {
+                print("❌ Lambda returned no package")
+                return nil
+            }
+
+            guard let downloadedFile = downloadedPackage.files.first else {
+                print("❌ Lambda returned no file")
+                return nil
+            }
+
+            print("🔗 Presigned URL received")
+            print("File:", downloadedFile.id)
+            print("S3 path:", downloadedFile.path ?? "nil")
+            print("Size:", downloadedFile.size)
+
+            return downloadedFile
+
+        } catch {
+            print("❌ Download API error:")
+            print(error.localizedDescription)
             return nil
         }
     }

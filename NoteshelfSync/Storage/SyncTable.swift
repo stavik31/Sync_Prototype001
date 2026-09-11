@@ -76,6 +76,11 @@ struct SyncTable {
                                     ))
     }
     
+    static func markConflict(notebook: String, conflict flag: Bool) {
+        guard let db else { return }
+        _ = try? db.run(table.filter(name == notebook).update(conflict <- flag))
+    }
+    
     static func remove(notebook: String) {
         guard let db else { return }
         _ = try? db.run(table.filter(name == notebook).delete())

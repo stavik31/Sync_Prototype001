@@ -36,3 +36,32 @@ struct PackageMetadata: Codable {
     var path: String
     var last_mod: Int64
 }
+
+// MARK: - Download Request Models
+
+struct DownloadRequest: Codable {
+    let packages: [DownloadPackage]
+}
+
+struct DownloadPackage: Codable {
+    let packageId: String
+    let files: [String]
+}
+
+// MARK: - Download Response Models
+
+struct DownloadResponse: Codable {
+    let packages: [DownloadedPackage]
+}
+
+struct DownloadedPackage: Codable {
+    let packageId: String
+    let files: [DownloadedFile]
+}
+
+struct DownloadedFile: Codable {
+    let id: String
+    let path: String?
+    let downloadUrl: String
+    let size: Int
+}
